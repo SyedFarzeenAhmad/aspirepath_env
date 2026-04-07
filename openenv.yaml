@@ -1,0 +1,4 @@
+env_id: "aspirepath-v1"
+version: "1.0.0"
+description: "Grade 10 career counseling OpenEnv with dense reward shaping."
+entry_point: "server.app:AspirePathEnv"
