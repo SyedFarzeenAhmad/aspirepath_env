@@ -19,6 +19,7 @@ BENCHMARK = "aspirepath-v1"
 SUCCESS_THRESHOLD = 0.75
 TASK_SEQUENCE = ("easy", "medium", "hard")
 TASK_IDS = {"easy": "S1", "medium": "S2", "hard": "S3"}
+HEARTBEAT_INTERVAL_SECONDS = int(os.getenv("HEARTBEAT_INTERVAL_SECONDS", "300"))
 
 SYSTEM_PROMPT = (
     "You are an expert Grade 10 career counselor. "
@@ -49,6 +50,10 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
         f"rewards={rewards_text}",
         flush=True,
     )
+
+
+def log_heartbeat() -> None:
+    print("[HEARTBEAT] batch processing complete; keeping Space runtime alive", flush=True)
 
 
 def sanitize_log_value(value: str) -> str:
@@ -202,6 +207,10 @@ async def main() -> None:
     client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN or "hf-token-not-set")
     for task_name in TASK_SEQUENCE:
         await run_task(client, task_name)
+
+    while True:
+        log_heartbeat()
+        await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
 
 
 if __name__ == "__main__":
