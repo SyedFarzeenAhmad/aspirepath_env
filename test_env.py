@@ -4,7 +4,7 @@ from server.models import Action
 
 async def test():
     env = AspirePathEnv()
-    obs = await env.reset()
+    obs = env.reset()
     print(f"Initial Observation: {obs}")
     
     # Simulate a mock action
@@ -13,7 +13,7 @@ async def test():
         career_cluster="STEM", 
         justification="High analytical ability and coding interest strongly support a STEM path with PCM."
     )
-    next_obs = await env.step(action)
+    next_obs = env.step(action)
     print(f"Reward: {next_obs.reward}, Done: {next_obs.done}")
     print(f"Reward reasoning: {next_obs.metadata.get('reward_reasoning')}")
 

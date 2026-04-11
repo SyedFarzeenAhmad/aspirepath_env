@@ -19,7 +19,8 @@ BENCHMARK = "aspirepath-v1"
 SUCCESS_THRESHOLD = 0.75
 TASK_SEQUENCE = ("easy", "medium", "hard")
 TASK_IDS = {"easy": "S1", "medium": "S2", "hard": "S3"}
-HEARTBEAT_INTERVAL_SECONDS = int(os.getenv("HEARTBEAT_INTERVAL_SECONDS", "300"))
+OPENAI_TIMEOUT_SECONDS = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "15"))
+OPENAI_MAX_RETRIES = int(os.getenv("OPENAI_MAX_RETRIES", "0"))
 
 SYSTEM_PROMPT = (
     "You are an expert Grade 10 career counselor. "
@@ -50,12 +51,6 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
         f"rewards={rewards_text}",
         flush=True,
     )
-
-
-def log_heartbeat() -> None:
-    print("[HEARTBEAT] batch processing complete; keeping Space runtime alive", flush=True)
-
-
 def sanitize_log_value(value: str) -> str:
     return " ".join(value.split())
 
@@ -163,7 +158,15 @@ async def build_action(client: OpenAI, observation: Observation) -> tuple[Action
 
 
 def format_action(action: Action) -> str:
-    return json.dumps(model_dump(action), separators=(",", ":"), ensure_ascii=True)
+    return json.dumps(
+        {
+            "recommended_stream": action.recommended_stream,
+            "career_cluster": action.career_cluster,
+            "justification": action.justification,
+        },
+        separators=(",", ":"),
+        ensure_ascii=True,
+    )
 
 
 async def run_task(client: OpenAI, task_name: str) -> None:
@@ -177,11 +180,11 @@ async def run_task(client: OpenAI, task_name: str) -> None:
     log_start(task=task_label, env_name=BENCHMARK, model=MODEL_NAME)
 
     try:
-        observation = await env.reset(task_name=task_name)
+        observation = env.reset(task_name=task_name)
         task_label = observation.student_id
 
         action, error = await build_action(client, observation)
-        next_observation = await env.step(action)
+        next_observation = env.step(action)
 
         reward_score = float(next_observation.reward or 0.0)
         rewards.append(reward_score)
@@ -204,13 +207,14 @@ async def run_task(client: OpenAI, task_name: str) -> None:
 
 
 async def main() -> None:
-    client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN or "hf-token-not-set")
+    client = OpenAI(
+        base_url=API_BASE_URL,
+        api_key=HF_TOKEN or "hf-token-not-set",
+        timeout=OPENAI_TIMEOUT_SECONDS,
+        max_retries=OPENAI_MAX_RETRIES,
+    )
     for task_name in TASK_SEQUENCE:
         await run_task(client, task_name)
-
-    while True:
-        log_heartbeat()
-        await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
 
 
 if __name__ == "__main__":

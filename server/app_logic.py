@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
-from .models import Action, Observation, Reward
+from .models import Action, Observation, Reward, State
 
 try:
     from openenv.core.env_server.interfaces import Environment as OpenEnv
@@ -37,17 +37,6 @@ class TaskDefinition:
     target_cluster: str
     task_description: str
     rationale_keywords: tuple[str, ...]
-
-
-@dataclass
-class RuntimeState:
-    episode_id: str
-    current_task: str
-    step_count: int = 0
-    done: bool = False
-    last_action: Optional[Action] = None
-    last_reward: Optional[Reward] = None
-    last_reasoning: Optional[str] = None
 
 
 class AspirePathEnv(OpenEnv):
@@ -119,19 +108,24 @@ class AspirePathEnv(OpenEnv):
         if default_task not in self._tasks:
             default_task = "easy"
         self._current_task_key = default_task
-        self._current_observation: Optional[Observation] = None
-        self._state = RuntimeState(
+        self._state = State(
             episode_id=self._new_episode_id(),
             current_task=default_task,
         )
+        self._current_observation: Optional[Observation] = self._build_observation(
+            task=self._tasks[default_task],
+            reward=None,
+            reasoning=None,
+        )
 
-    async def state(self) -> RuntimeState:
+    @property
+    def state(self) -> State:
         return self._state
 
     def available_tasks(self) -> tuple[str, ...]:
         return tuple(self._tasks.keys())
 
-    async def reset(
+    def reset(
         self,
         seed: Optional[int] = None,
         episode_id: Optional[str] = None,
@@ -147,7 +141,7 @@ class AspirePathEnv(OpenEnv):
 
         self._current_task_key = selected_task
         task = self._tasks[selected_task]
-        self._state = RuntimeState(
+        self._state = State(
             episode_id=episode_id or self._new_episode_id(),
             current_task=task.key,
             step_count=0,
@@ -159,7 +153,7 @@ class AspirePathEnv(OpenEnv):
         self._current_observation = self._build_observation(task=task, reward=None, reasoning=None)
         return self._current_observation
 
-    async def step(
+    def step(
         self,
         action: Action,
         timeout_s: Optional[float] = None,

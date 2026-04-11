@@ -4,6 +4,8 @@ WORKDIR /app
 
 COPY . .
 
-RUN pip install .
+RUN pip install --no-cache-dir .
 
-CMD ["python", "inference.py"]
+EXPOSE 8000
+
+CMD ["server"]

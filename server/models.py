@@ -42,3 +42,13 @@ class Action(OpenEnvActionBase):
 
 class Reward(BaseModel):
     score: float = Field(..., ge=0.0, le=1.0)
+
+
+class State(BaseModel):
+    episode_id: str = Field(..., min_length=1)
+    current_task: str = Field(..., min_length=1)
+    step_count: int = Field(default=0, ge=0)
+    done: bool = Field(default=False)
+    last_action: Optional[Action] = None
+    last_reward: Optional[Reward] = None
+    last_reasoning: Optional[str] = None
