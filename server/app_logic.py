@@ -55,6 +55,8 @@ class AspirePathEnv(OpenEnv):
         "arts": "Arts",
         "healthcare": "Healthcare",
     }
+    MIN_VALIDATOR_SCORE = 0.01
+    MAX_VALIDATOR_SCORE = 0.99
 
     def __init__(self, default_task: str = "easy", **kwargs: Any) -> None:
         super().__init__(**kwargs)
@@ -165,7 +167,7 @@ class AspirePathEnv(OpenEnv):
 
         task = self._tasks[self._current_task_key]
         if self._state.done:
-            reward = Reward(score=0.0)
+            reward = Reward(score=self.MIN_VALIDATOR_SCORE)
             reasoning = "episode already completed; reset before taking another step"
             self._state.last_action = action
             self._state.last_reward = reward
@@ -270,7 +272,12 @@ class AspirePathEnv(OpenEnv):
         else:
             reasoning_parts.append(f"target stream is {task.target_stream}")
 
-        reward = Reward(score=min(round(score, 4), 1.0))
+        bounded_score = min(round(score, 4), 1.0)
+        if bounded_score >= 1.0:
+            bounded_score = self.MAX_VALIDATOR_SCORE
+        elif bounded_score <= 0.0:
+            bounded_score = self.MIN_VALIDATOR_SCORE
+        reward = Reward(score=bounded_score)
         return reward, "; ".join(reasoning_parts)
 
     def _normalize_value(self, raw_value: str, mapping: Dict[str, str]) -> Optional[str]:

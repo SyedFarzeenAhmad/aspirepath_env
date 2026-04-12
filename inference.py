@@ -19,6 +19,8 @@ BENCHMARK = "aspirepath-v1"
 SUCCESS_THRESHOLD = 0.75
 TASK_SEQUENCE = ("easy", "medium", "hard")
 TASK_IDS = {"easy": "S1", "medium": "S2", "hard": "S3"}
+MIN_VALIDATOR_SCORE = 0.01
+MAX_VALIDATOR_SCORE = 0.99
 OPENAI_TIMEOUT_SECONDS = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "15"))
 OPENAI_MAX_RETRIES = int(os.getenv("OPENAI_MAX_RETRIES", "0"))
 
@@ -51,6 +53,16 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
         f"rewards={rewards_text}",
         flush=True,
     )
+
+
+def normalize_validator_score(score: float) -> float:
+    if score >= 1.0:
+        return MAX_VALIDATOR_SCORE
+    if score <= 0.0:
+        return MIN_VALIDATOR_SCORE
+    return score
+
+
 def sanitize_log_value(value: str) -> str:
     return " ".join(value.split())
 
@@ -173,7 +185,7 @@ async def run_task(client: OpenAI, task_name: str) -> None:
     env = AspirePathEnv(default_task=task_name)
     rewards: List[float] = []
     steps_taken = 0
-    score = 0.0
+    score = MIN_VALIDATOR_SCORE
     success = False
     task_label = TASK_IDS.get(task_name, task_name)
 
@@ -186,7 +198,7 @@ async def run_task(client: OpenAI, task_name: str) -> None:
         action, error = await build_action(client, observation)
         next_observation = env.step(action)
 
-        reward_score = float(next_observation.reward or 0.0)
+        reward_score = normalize_validator_score(float(next_observation.reward or 0.0))
         rewards.append(reward_score)
         steps_taken = 1
         score = reward_score
@@ -200,10 +212,21 @@ async def run_task(client: OpenAI, task_name: str) -> None:
             error=error,
         )
     except Exception as exc:
-        log_step(step=1, action="null", reward=0.00, done=False, error=str(exc))
+        log_step(
+            step=1,
+            action="null",
+            reward=normalize_validator_score(0.0),
+            done=False,
+            error=str(exc),
+        )
     finally:
         env.close()
-        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+        log_end(
+            success=success,
+            steps=steps_taken,
+            score=normalize_validator_score(score),
+            rewards=[normalize_validator_score(reward) for reward in rewards],
+        )
 
 
 async def main() -> None:
